@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Tiệm Kẹo Bông Gòn</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fde8f1;--fg:#4a2c5a;--sky:#fff6fb;--muted:#8a6a99;--accent:#ff6fa8;--card:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#231a2e;--fg:#f6e9ff;--sky:#2e2240;--muted:#b9a3cc;--accent:#ff7fb5;--card:#3a2b50}}
+:root[data-theme="dark"]{--bg:#231a2e;--fg:#f6e9ff;--sky:#2e2240;--muted:#b9a3cc;--accent:#ff7fb5;--card:#3a2b50}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:12px;user-select:none;-webkit-user-select:none}
+h1{margin:0 0 6px;font-size:1.4rem}
+.wrap{width:100%;max-width:480px}
+.top{display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px}
+.q{display:flex;gap:6px;min-height:104px;margin-bottom:6px}
+.cu{flex:1;background:var(--card);border-radius:12px;padding:6px;font-size:.78rem;cursor:pointer;border:2px solid transparent;text-align:center;line-height:1.3}
+.cu:active{border-color:var(--accent)}
+.cu .f{font-size:1.6rem}
+.cu i{display:block;height:5px;background:#5ac47b;border-radius:9px;margin-top:4px}
+.empty{color:var(--muted);align-self:center;width:100%;text-align:center;font-size:.85rem}
+canvas{width:100%;display:block;background:var(--sky);border:3px solid var(--accent);border-radius:16px;touch-action:none}
+.meter{height:10px;background:var(--card);border-radius:99px;margin:8px 0;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:6px 0}
+.sg{flex:1;min-width:80px;background:var(--card);border:3px solid transparent;border-radius:12px;padding:6px 2px;text-align:center;font-size:.72rem;cursor:pointer;color:var(--fg)}
+.sg.on{border-color:var(--fg)}
+.sg b{display:block;width:22px;height:22px;border-radius:50%;margin:0 auto 3px}
+.an{font-size:1.3rem;width:42px;height:38px;border-radius:12px;border:2px solid transparent;background:var(--card);cursor:pointer}
+.an.on{border-color:var(--fg)}
+button.b{padding:9px 14px;font-size:.9rem;border:0;background:var(--accent);color:#fff;border-radius:999px;cursor:pointer;font-weight:700}
+button.g{background:var(--muted)}
+#toast{min-height:1.4em;text-align:center;font-weight:700;margin:4px 0}
+p{margin:4px 0 0;color:var(--muted);font-size:.82rem;text-align:center}
+</style>
+</head>
+<body>
+<h1>🍭 Tiệm Kẹo Bông Gòn</h1>
+<div class="wrap">
+  <div class="top"><span>💰 <span id="mo">60</span> xu</span><span>🧾 Đã bán: <span id="sv">0</span></span></div>
+  <div class="q" id="q"></div>
+  <canvas id="c" width="480" height="480"></canvas>
+  <div class="meter"><i id="mt"></i></div>
+  <div class="row" id="sh"></div>
+  <div class="row" id="ans"></div>
+  <div class="row">
+    <button class="b" id="pour">🍚 Đổ vào máy</button>
+    <button class="b" id="buy">🛒 Mua 100g (10 xu)</button>
+    <button class="b g" id="clear">🗑 Bỏ que</button>
+  </div>
+  <div id="toast"></div>
+  <p>Chọn loại đường → đổ vào máy → kéo quay quanh nồi → chạm khách để giao kẹo.</p>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=480,H=480,CX=240,CY=300;
+const $=id=>document.getElementById(id);
+const SUG=[['#ff9ec7','Dâu 🍓'],['#8ecdfc','Việt quất 🫐'],['#9be8b5','Táo xanh 🍏'],['#ffe07a','Dứa 🍍'],['#c9a8ff','Nho 🍇']];
+const CN=['hồng','xanh dương','xanh lá','vàng','tím'];
+const ANI=['🐱','🐰','🐻','🐼','🦊'],ANN=['mèo','thỏ','gấu','gấu trúc','cáo'];
+const SZ=[[30,'nhỏ',15],[55,'vừa',25],[80,'to',40]];
+const FACE=['👦','👧','🧑','👵','👨‍🦰','👩‍🦱'];
+let col=0,ani=-1,stock=[100,100,0,0,0],bowl=[0,0,0,0,0],layers=[],a=-Math.PI/2,spin=0,money=60,sold=0;
+let drag=false,lastA=null,parts=[],speedNow=0,queue=[],nid=0,spawn=120;
+const total=()=>layers.reduce((s,l)=>s+l.n,0);
+const rad=()=>total()>0?14+Math.sqrt(total())*5.5:0;
+const tip=()=>({x:CX+85*Math.cos(a),y:CY+85*Math.sin(a)});
+const toast=t=>$('toast').textContent=t;
+function shelf(){
+  $('sh').innerHTML='';
+  SUG.forEach((s,i)=>{const d=document.createElement('button');d.className='sg'+(i==col?' on':'');
+    d.innerHTML='<b style="background:'+s[0]+'"></b>'+s[1]+'<br>kho '+Math.round(stock[i])+'g';
+    d.onclick=()=>{col=i;shelf()};$('sh').appendChild(d)});
+  $('mo').textContent=money;$('sv').textContent=sold;
+}
+ANI.forEach((e,i)=>{const d=document.createElement('button');d.className='an';d.textContent=e;d.onclick=()=>{ani=ani===i?-1:i;[...$('ans').children].forEach((x,j)=>x.classList.toggle('on',j==ani))};$('ans').appendChild(d)});
+$('pour').onclick=()=>{
+  if(bowl[col]>=100){toast('Nồi đã đầy đường rồi!');return}
+  const n=Math.min(50,stock[col],100-bowl[col]);
+  if(n<=0){toast('Hết đường '+CN[col]+', hãy mua thêm!');return}
+  stock[col]-=n;bowl[col]+=n;toast('Đã đổ '+n+'g đường '+CN[col]);shelf();
+};
+$('buy').onclick=()=>{
+  if(money<10){toast('Không đủ tiền mua đường!');return}
+  money-=10;stock[col]+=100;toast('Đã mua 100g đường '+CN[col]);shelf();
+};
+$('clear').onclick=()=>{layers=[];toast('Đã bỏ que kẹo, làm cây mới!')};
+function addCustomer(){
+  const c={id:nid++,f:FACE[Math.floor(Math.random()*FACE.length)],c:Math.floor(Math.random()*5),a:Math.random()<.65?Math.floor(Math.random()*5):-1,s:Math.floor(Math.random()*3),pat:50*60,max:50*60};
+  queue.push(c);drawQ();
+}
+function drawQ(){
+  const q=$('q');q.innerHTML='';
+  if(!queue.length){q.innerHTML='<div class="empty">Chưa có khách... đợi chút nhé 🕐</div>';return}
+  queue.forEach(c=>{
+    const d=document.createElement('div');d.className='cu';
+    d.innerHTML='<div class="f">'+c.f+'</div>kẹo <b>'+CN[c.c]+'</b><br>'+(c.a>=0?'hình '+ANI[c.a]:'trơn')+'<br>cỡ '+SZ[c.s][1]+' · '+(SZ[c.s][2]+(c.a>=0?8:0))+' xu<i id="p'+c.id+'" style="width:100%"></i>';
+    d.onclick=()=>serve(c);q.appendChild(d);
+  });
+}
+function serve(c){
+  const t=total();if(t<5){toast('Chưa có kẹo để giao!');return}
+  const best=layers.reduce((m,l)=>l.n>m.n?l:m,layers[0]);
+  const okC=best.c===c.c,okA=ani===c.a,okS=t>=SZ[c.s][0]&&t<=SZ[c.s][0]+30;
+  const st=okC+okA+okS,base=SZ[c.s][2]+(c.a>=0?8:0);
+  const pay=Math.round(base*st/3)+(st==3?10:0);
+  money+=pay;sold++;
+  toast(st==3?'🎉 Hoàn hảo! +'+pay+' xu (có tiền boa)':'Khách trả '+pay+' xu (đúng '+st+'/3: màu, thú, cỡ)');
+  queue=queue.filter(x=>x!==c);layers=[];drawQ();shelf();
+}
+const rnd=s=>{const x=Math.sin(s*127.1+3.7)*43758.5453;return x-Math.floor(x)};
+const shade=h=>{const n=parseInt(h.slice(1),16);return 'rgb('+[(n>>16)&255,(n>>8)&255,n&255].map(v=>Math.round(v*.85)).join(',')+')'};
+function candy(){
+  const t=total();if(t<1)return;
+  const r=rad(),p=tip();
+  if(ani>=0){ctx.fillStyle=shade(SUG[layers[layers.length-1].c][0]);
+    [-1,1].forEach(s=>{ctx.beginPath();ctx.arc(p.x+s*r*.62,p.y-r*.82,r*.34,0,7);ctx.fill()})}
+  let acc=0;
+  layers.forEach((l,i)=>{
+    const f0=acc/t;acc+=l.n;const f1=acc/t,k=Math.ceil(l.n*.7)+2;
+    ctx.fillStyle=SUG[l.c][0];ctx.globalAlpha=.9;
+    for(let j=0;j<k;j++){const ang=rnd(i*97+j)*6.283,d=r*(f0+(f1-f0)*rnd(i*31+j*7))*.75;
+      ctx.beginPath();ctx.arc(p.x+Math.cos(ang)*d,p.y+Math.sin(ang)*d,r*.32,0,7);ctx.fill()}
+  });
+  ctx.globalAlpha=.35;ctx.fillStyle='#fff';
+  for(let j=0;j<6;j++){ctx.beginPath();ctx.arc(p.x+(rnd(j)-.5)*r,p.y-r*.2+(rnd(j+9)-.5)*r*.7,r*.13,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  if(ani>=0){ctx.font=Math.round(r*.9)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(ANI[ani],p.x,p.y+r*.1)}
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createRadialGradient(CX,CY,60,CX,CY,155);g.addColorStop(0,'#dfe3ee');g.addColorStop(1,'#9aa0b4');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(CX,CY,155,0,7);ctx.fill();
+  ctx.fillStyle='#f4f6fb';ctx.beginPath();ctx.arc(CX,CY,118,0,7);ctx.fill();
+  ctx.fillStyle='#ff8a5c';ctx.beginPath();ctx.arc(CX,CY,34,0,7);ctx.fill();
+  ctx.fillStyle='#fff';
+  for(let i=0;i<8;i++){const q=spin+i*Math.PI/4;ctx.beginPath();ctx.arc(CX+Math.cos(q)*22,CY+Math.sin(q)*22,3.5,0,7);ctx.fill()}
+  for(let i=0;i<5;i++)if(bowl[i]>0){ctx.globalAlpha=.85;ctx.fillStyle=SUG[i][0];
+    for(let j=0;j<Math.ceil(bowl[i]/8);j++){const an=rnd(i*50+j)*6.283,d=40+rnd(j+i*9)*60;ctx.beginPath();ctx.arc(CX+Math.cos(an)*d,CY+Math.sin(an)*d,3,0,7);ctx.fill()}}
+  ctx.globalAlpha=1;
+  ctx.lineWidth=2;ctx.lineCap='round';
+  parts.forEach(p=>{ctx.strokeStyle=SUG[p.c][0];ctx.globalAlpha=1-p.t/20;const u=p.t/20,x=p.x0+(p.x1-p.x0)*u,y=p.y0+(p.y1-p.y0)*u;
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-(p.x1-p.x0)*.08+Math.sin(p.t)*6,y-(p.y1-p.y0)*.08+Math.cos(p.t)*6);ctx.stroke()});
+  ctx.globalAlpha=1;
+  const p=tip();
+  ctx.strokeStyle='#e8c99a';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+Math.cos(a)*230,p.y+Math.sin(a)*230);ctx.stroke();
+  candy();
+  if(!layers.length&&!drag){ctx.fillStyle='rgba(120,90,140,.85)';ctx.font='bold 15px sans-serif';ctx.textAlign='center';ctx.fillText('↻ kéo quanh nồi để quay kẹo',CX,50)}
+}
+function loop(){
+  spin+=.25+speedNow*.6;speedNow*=.9;
+  parts.forEach(p=>p.t++);parts=parts.filter(p=>p.t<20);
+  $('mt').style.width=bowl[col]+'%';$('mt').style.background=SUG[col][0];
+  if(--spawn<=0&&queue.length<3){addCustomer();spawn=(8+Math.random()*8)*60}
+  else if(spawn<=0)spawn=120;
+  let gone=false;
+  queue.forEach(c=>{c.pat--;const e=$('p'+c.id);if(e){e.style.width=(c.pat/c.max*100)+'%';e.style.background=c.pat<c.max*.3?'#e5484d':'#5ac47b'}});
+  if(queue.some(c=>c.pat<=0)){queue=queue.filter(c=>c.pat>0);gone=true}
+  if(gone){toast('😡 Có khách chờ lâu quá nên bỏ đi!');drawQ()}
+  draw();requestAnimationFrame(loop);
+}
+const ang=e=>{const b=cv.getBoundingClientRect();return Math.atan2((e.clientY-b.top)*H/b.height-CY,(e.clientX-b.left)*W/b.width-CX)};
+cv.addEventListener('pointerdown',e=>{drag=true;lastA=ang(e);a=lastA;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointerup',()=>{drag=false;lastA=null});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const n=ang(e);let d=n-lastA;if(d>Math.PI)d-=6.283;if(d<-Math.PI)d+=6.283;
+  lastA=n;a=n;const m=Math.abs(d);speedNow=Math.min(1,m*4);
+  if(m<.005)return;
+  if(bowl[col]<=0){toast('Nồi hết đường '+CN[col]+'! Đổ thêm hoặc chọn loại khác.');return}
+  if(total()>=100){toast('Cây kẹo đầy rồi, giao khách thôi!');return}
+  const use=Math.min(m*7,bowl[col],100-total());bowl[col]-=use;
+  const l=layers[layers.length-1];
+  if(l&&l.c===col)l.n+=use;else layers.push({c:col,n:use});
+  const t=tip();
+  for(let i=0;i<3;i++){const q=Math.random()*6.283;parts.push({x0:CX+Math.cos(q)*40,y0:CY+Math.sin(q)*40,x1:t.x+(Math.random()-.5)*30,y1:t.y+(Math.random()-.5)*30,t:0,c:col})}
+  toast('');
+});
+shelf();addCustomer();loop();
+</script>
+</body>
+</html>
